@@ -2,9 +2,11 @@
 
 ## Current task
 
-Phase 0 accuracy test: plan written, waiting on Gabe's review and choice of execution method. Plan: `docs/superpowers/plans/2026-11-08-phase-0-accuracy-test.md`. Spec: `PRD.md` (approved 2026-11-08).
+Phase 0 accuracy test: built, reviewed and fixed on branch `phase-0-accuracy-test` (not pushed; no remote yet). **Waiting on Gabe's OK** to create public repo `guild12/pedal-steel-tuner`, merge to `main` and push, which deploys the page to GitHub Pages (plan Task 4). Then Gabe runs `docs/phase-0-results.md` at the steel (Task 5). Plan: `docs/superpowers/plans/2026-11-08-phase-0-accuracy-test.md`. Ledger with all rulings: `.superpowers/sdd/2026-11-08-phase-0-accuracy-test/progress.md` (git-ignored).
 
 ## Log
+
+- **2026-11-08 02:29 PST**: Phase 0 Tasks 1–3 done, 38 tests passing. The final review caught noise sensitivity (fixed with a 1 kHz low-pass) and a misleading Steadiness readout (fixed). Known and deferred to Phase 1: the low strings may read a few cents sharp because overtones pull the detector (inharmonicity); the test sheet treats that as a known limit, not a Safari fail. **Gotcha:** the browser pane pauses animation frames when the app window isn't in view, so check the page with a timer-driven harness.
 
 - **2026-11-08 01:57 PST**: PRD approved and the Phase 0 plan written. Not a git repo yet; plan Task 1 runs `git init`. Creating GitHub repo `guild12/pedal-steel-tuner` and pushing need Gabe's explicit words (plan Task 4).
 - **Gotcha:** don't open files under `~/Library/CloudStorage/OneDrive-Personal` that are online-only (`ls -lO` shows `dataless`). Reading `Pictures/sierra 14 copedent.jpg` crashed the session twice. Gabe's own copedent isn't in his visualizer app either (its copedents live in browser storage, and he never entered it). The seed copedent is the Sierra factory chart in `reference/`.
