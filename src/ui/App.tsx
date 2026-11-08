@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import type { EngineStatus } from '../audio/engine'
-import { sierra14 } from '../model/seeds/sierra14'
+import { loadProfile, saveProfile } from '../model/storage'
+import type { Profile } from '../model/types'
 import { DropWizard } from './DropWizard'
+import { lockResolves } from './lock'
+import { Settings } from './Settings'
 import { TunerScreen, type Lock } from './TunerScreen'
 import { useTuner } from './useTuner'
 
@@ -12,10 +15,18 @@ const MESSAGES: Partial<Record<EngineStatus, string>> = {
 }
 
 export function App() {
-  const [profile, setProfile] = useState(sierra14)
+  const [profile, setProfile] = useState<Profile>(loadProfile)
   const [measuring, setMeasuring] = useState(false)
   const { shown, status, detail, start } = useTuner(profile)
   const [lock, setLock] = useState<Lock | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  // A lock whose string, change or stop was edited away is ignored (and would crash positionTarget).
+  const activeLock = lock && lockResolves(profile, lock) ? lock : null
+
+  const update = (p: Profile) => {
+    setProfile(p)
+    saveProfile(p)
+  }
 
   const message =
     status === 'error' ? `Couldn't start the input${detail ? `: ${detail}` : ''}` : MESSAGES[status]
@@ -38,22 +49,26 @@ export function App() {
             profile={profile}
             shown={shown}
             onSave={(cabinetDrop) => {
-              setProfile((p) => ({ ...p, cabinetDrop }))
+              update({ ...profile, cabinetDrop })
               setMeasuring(false)
             }}
             onCancel={() => setMeasuring(false)}
           />
         </div>
       )}
+      {settingsOpen ? (
+        <Settings profile={profile} shown={shown} onChange={update} onClose={() => setSettingsOpen(false)} />
+      ) : (
       <TunerScreen
         profile={profile}
         shown={shown}
         status={status}
-        lock={lock}
+        lock={activeLock}
         onLock={setLock}
-        onOpenSettings={() => {}}
+        onOpenSettings={() => setSettingsOpen(true)}
         onMeasureDrop={() => setMeasuring(true)}
       />
+      )}
     </main>
   )
 }

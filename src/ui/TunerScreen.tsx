@@ -93,7 +93,7 @@ export function TunerScreen({ profile, shown, status, lock, onLock, onOpenSettin
       </div>
       {profile.cabinetDrop === 0 && (
         <p className="rounded-lg bg-[#1d232a] px-3 py-2 text-center text-xs text-[#94a0ad]">
-          Cabinet drop not set — both gauges show the same target. Measure it in Settings.
+          Cabinet drop not set — both gauges show the same target.
           {onMeasureDrop && (
             <button onClick={onMeasureDrop} className="mt-2 block w-full rounded-lg bg-[#2a323b] p-2 font-bold text-white">
               Measure cabinet drop
