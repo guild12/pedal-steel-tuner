@@ -40,7 +40,27 @@ describe('sample rates', () => {
   }
 })
 
-test('noisy room (20 dB SNR) within 1 cent', () => expect(errorCents(164.81, 48000, [1, 0.5], 20)).toBeLessThan(1))
+test('noisy room (20 dB SNR) within 1 cent for every noise seed', () => {
+  const sr = 48000
+  let worst = 0
+  for (let seed = 1; seed <= 50; seed++) {
+    const samples = tone({ hz: 164.81, sampleRate: sr, length: requiredSamples(sr), harmonics: [1, 0.5], noiseDb: 20, seed })
+    const result = detectPitch(samples, sr)
+    expect(result).not.toBeNull()
+    worst = Math.max(worst, Math.abs(centsBetween(result!.frequency, 164.81)))
+  }
+  expect(worst).toBeLessThan(1)
+})
+
+test('a quiet note (RMS 0.004) is still detected', () => {
+  const sr = 48000
+  const samples = tone({ hz: 82.407, sampleRate: sr, length: requiredSamples(sr), harmonics: [1, 0.5] })
+  const rms = Math.sqrt(samples.reduce((s, v) => s + v * v, 0) / samples.length)
+  const quiet = samples.map((v) => (v / rms) * 0.004)
+  const result = detectPitch(quiet, sr)
+  expect(result).not.toBeNull()
+  expect(Math.abs(centsBetween(result!.frequency, 82.407))).toBeLessThan(0.2)
+})
 
 test('silence returns null', () => expect(detectPitch(new Float32Array(requiredSamples(48000)), 48000)).toBeNull())
 
