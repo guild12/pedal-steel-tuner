@@ -101,4 +101,46 @@ describe('DisplayFilter', () => {
     }
     expect(Math.abs(run(8.3) - run(33.3))).toBeLessThan(0.8)
   })
+  it('keeps suppressing a weak tail after the hold expires', () => {
+    const f = new DisplayFilter()
+    let i = 0
+    for (; i < 30; i++) f.push(frame(i, E2, 2, 0.1), 440)
+    const lastGood = (i - 1) * DT
+    const wild = [37, 12, 25, 40, 6, -30, 44]
+    let sawNull = false
+    while (i * DT - lastGood < 1500) {
+      const shown = f.push(frame(i, E2, wild[i % wild.length], 0.002), 440)
+      if (i * DT - lastGood > 420) {
+        expect(shown).toBeNull()
+        sawNull = true
+      }
+      i++
+    }
+    expect(sawNull).toBe(true)
+  })
+
+  it('accepts a loud pluck on its first frame after a long tail', () => {
+    const f = new DisplayFilter()
+    let i = 0
+    for (; i < 30; i++) f.push(frame(i, E2, 2, 0.1), 440)
+    for (const end = i + 90; i < end; i++) f.push(frame(i, E2, 30, 0.002), 440)
+    const shown = f.push(frame(i, E2, 1, 0.1), 440)
+    expect(shown).not.toBeNull()
+    expect(shown!.held).toBe(false)
+    expect(shown!.note).toBe('E')
+    expect(shown!.cents).toBeCloseTo(1, 1)
+  })
+
+  it('shows a soft new note right after a loud one (6 dB onset)', () => {
+    const f = new DisplayFilter()
+    let i = 0
+    for (; i < 30; i++) f.push(frame(i, A2, 0, 0.1), 440)
+    for (const end = i + 10; i < end; i++) f.push(frame(i, A2, 0, 0.1 * 0.7 ** (i - 29)), 440)
+    for (const end = i + 12; i < end; i++) f.push(frame(i, A2, 0, 0.001), 440)
+    const shown = f.push(frame(i, E2, 3, 0.004), 440)
+    expect(shown).not.toBeNull()
+    expect(shown!.held).toBe(false)
+    expect(shown!.note).toBe('E')
+    expect(shown!.cents).toBeCloseTo(3, 1)
+  })
 })
