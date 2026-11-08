@@ -62,10 +62,30 @@ describe('DropWizard', () => {
     expect(screen.getByText(/Now hold A and B/)).toBeTruthy()
   })
 
+  it('does not re-arm step 2 on an upward drift of the still-ringing note', () => {
+    const { push } = setup()
+    feed(push, 0, () => 2.0)
+    expect(screen.getByText(/Now hold A and B/)).toBeTruthy()
+    for (let t = 1000; t <= 3000; t += 100) push(e(3.5), t)
+    expect(screen.getByText(/Now hold A and B/)).toBeTruthy()
+    expect(screen.queryByText(/Drop:/)).toBeNull()
+  })
+
+  it('rejects a pair whose drop is under 0.5 with a hint, and stays on step 2', () => {
+    const { push } = setup()
+    feed(push, 0, () => 2.0)
+    push(null as unknown as Shown, 1500)
+    feed(push, 2000, () => 1.7)
+    expect(screen.getByText("Didn't see a drop — hold A and B fully and pluck again.")).toBeTruthy()
+    expect(screen.getByText(/Now hold A and B/)).toBeTruthy()
+    expect(screen.queryByText(/Drop:/)).toBeNull()
+  })
+
   it('rejects a measured drop outside 0-30', () => {
     const { push, onSave } = setup()
-    feed(push, 0, () => -4.3)
-    feed(push, 2000, () => 2.0)
+    feed(push, 0, () => 2.0)
+    push(null as unknown as Shown, 1500)
+    feed(push, 2000, () => -40)
     expect(screen.getByText(/That doesn't look right/)).toBeTruthy()
     const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement
     expect(save.disabled).toBe(true)

@@ -13,13 +13,8 @@ interface Props {
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const
-const field = 'rounded-lg bg-[#0e1114] p-2 text-white'
+const field = 'rounded-lg bg-[#0e1114] p-2 text-base text-white'
 const btn = 'rounded-lg bg-[#2a323b] px-3 py-2 font-bold'
-
-function num(v: string, fallback = 0): number {
-  const n = Number(v)
-  return v.trim() !== '' && Number.isFinite(n) ? n : fallback
-}
 
 /** Keeps what the user is typing; calls `commit` only with a value `parse` accepts. */
 function DraftInput<V>({
@@ -63,9 +58,17 @@ const parseRef = (t: string) => {
   const n = Number(t)
   return t.trim() !== '' && n >= 430 && n <= 450 ? n : null
 }
-const parseDrop = (t: string) => {
+const parseNum = (t: string) => {
   const n = Number(t)
-  return t.trim() !== '' && Number.isFinite(n) ? Math.min(30, Math.max(0, Math.round(n * 10) / 10)) : null
+  return t.trim() !== '' && Number.isFinite(n) ? n : null
+}
+const parseInt0 = (t: string) => {
+  const n = parseNum(t)
+  return n !== null && Number.isInteger(n) ? n : null
+}
+const parseDrop = (t: string) => {
+  const n = parseNum(t)
+  return n !== null && n >= 0 && n <= 30 ? Math.round(n * 10) / 10 : null
 }
 
 function RuleEditor({ label, rule, onChange }: { label: string; rule: TargetRule; onChange: (r: TargetRule) => void }) {
@@ -85,12 +88,13 @@ function RuleEditor({ label, rule, onChange }: { label: string; rule: TargetRule
         <option value="cents">Fixed ¢</option>
       </select>
       {rule.kind === 'cents' && (
-        <input
-          aria-label={`${label} cents`}
+        <DraftInput
+          label={`${label} cents`}
           type="number"
           step={0.01}
           value={rule.cents}
-          onChange={(e) => onChange({ kind: 'cents', cents: num(e.target.value) })}
+          parse={parseNum}
+          commit={(cents) => onChange({ kind: 'cents', cents })}
           className={`${field} w-20`}
         />
       )}
@@ -108,10 +112,20 @@ export function Settings({ profile, shown, onChange, onClose }: Props) {
     setString(number, (s) => ({ ...s, changes: s.changes.map((c, j) => (j === i ? f(c) : c)) }))
 
   const doExport = () => {
-    const url = URL.createObjectURL(new Blob([exportProfile(profile)], { type: 'application/json' }))
+    const json = exportProfile(profile)
+    const name = `${profile.name || 'profile'}.json`
+    // The Home Screen app can't download blobs; the share sheet can save to Files.
+    const file = new File([json], name, { type: 'application/json' })
+    if (typeof navigator.share === 'function' && navigator.canShare?.({ files: [file] })) {
+      navigator.share({ files: [file] }).catch((err) => {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) console.error(err)
+      })
+      return
+    }
+    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `${profile.name || 'profile'}.json`
+    a.download = name
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -177,12 +191,13 @@ export function Settings({ profile, shown, onChange, onClose }: Props) {
           {NOTES.map((n) => (
             <label key={n} className="flex flex-col gap-1 text-xs text-[#94a0ad]">
               {n}
-              <input
-                aria-label={`Note ${n}`}
+              <DraftInput
+                label={`Note ${n}`}
                 type="number"
                 step={0.01}
                 value={profile.noteTable[n]}
-                onChange={(e) => set({ noteTable: { ...profile.noteTable, [n]: num(e.target.value) } })}
+                parse={parseNum}
+                commit={(v) => set({ noteTable: { ...profile.noteTable, [n]: v } })}
                 className={`${field} w-full`}
               />
             </label>
@@ -237,15 +252,16 @@ export function Settings({ profile, shown, onChange, onClose }: Props) {
                     </div>
                     {c.stops.map((st, k) => (
                       <div key={k} className="flex flex-wrap items-center gap-2">
-                        <input
-                          aria-label={`${cl} stop ${k + 1} semitones`}
+                        <DraftInput
+                          label={`${cl} stop ${k + 1} semitones`}
                           type="number"
                           step={1}
                           value={st.semitones}
-                          onChange={(e) =>
+                          parse={parseInt0}
+                          commit={(semitones) =>
                             setChange(s.number, i, (x) => ({
                               ...x,
-                              stops: x.stops.map((y, j) => (j === k ? { ...y, semitones: num(e.target.value) } : y)),
+                              stops: x.stops.map((y, j) => (j === k ? { ...y, semitones } : y)),
                             }))
                           }
                           className={`${field} w-16`}

@@ -17,7 +17,7 @@ const MESSAGES: Partial<Record<EngineStatus, string>> = {
 export function App() {
   const [profile, setProfile] = useState<Profile>(loadProfile)
   const [measuring, setMeasuring] = useState(false)
-  const { shown, status, detail, start } = useTuner(profile)
+  const { shown, status, detail, start, inputs, inputLabel, starting, wakeLockMissing } = useTuner(profile)
   const [lock, setLock] = useState<Lock | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // A lock whose string, change or stop was edited away is ignored (and would crash positionTarget).
@@ -34,9 +34,36 @@ export function App() {
   return (
     <main className="mx-auto max-w-105 p-4">
       {status !== 'running' && (
-        <button className="mb-3 w-full rounded-xl bg-green-500 p-3 font-bold text-black" onClick={() => start()}>
+        <button
+          disabled={starting}
+          className="mb-3 w-full rounded-xl bg-green-500 p-3 font-bold text-black disabled:opacity-50"
+          onClick={() => start()}
+        >
           {status === 'interrupted' ? 'Tap to resume' : 'Start'}
         </button>
+      )}
+      {status === 'running' && inputLabel && (
+        <div className="mb-3 flex items-center justify-between gap-2 text-sm text-[#94a0ad]">
+          <span>Input: {inputLabel}</span>
+          {inputs.length > 1 && (
+            <select
+              aria-label="Audio input"
+              disabled={starting}
+              value={inputs.find((i) => i.label === inputLabel)?.id ?? ''}
+              onChange={(e) => start(e.target.value)}
+              className="min-w-0 rounded-lg bg-[#0e1114] p-2 text-base text-white"
+            >
+              {inputs.map((i) => (
+                <option key={i.id} value={i.id}>{i.label}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+      {status === 'running' && wakeLockMissing && (
+        <p className="mb-3 text-left text-sm text-amber-300">
+          Set Auto-Lock to Never while tuning (Settings → Display &amp; Brightness).
+        </p>
       )}
       {message && (
         <p role="alert" className="mb-3 rounded-xl bg-red-950 p-3 text-left text-red-200">

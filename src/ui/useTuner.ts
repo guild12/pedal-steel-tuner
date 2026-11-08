@@ -12,6 +12,10 @@ export interface TunerState {
   inputs: { id: string; label: string }[]
   inputLabel: string
   sampleRate: number | null
+  /** True while a start() is in flight (disable the Start button). */
+  starting: boolean
+  /** True when the screen can't be kept awake, so the UI should hint at Auto-Lock. */
+  wakeLockMissing: boolean
 }
 
 export function useTuner(profile: Profile): TunerState {
@@ -21,6 +25,8 @@ export function useTuner(profile: Profile): TunerState {
   const [inputs, setInputs] = useState<{ id: string; label: string }[]>([])
   const [inputLabel, setInputLabel] = useState('')
   const [sampleRate, setSampleRate] = useState<number | null>(null)
+  const [starting, setStarting] = useState(false)
+  const [wakeLockMissing, setWakeLockMissing] = useState(false)
 
   const engine = useRef<TunerEngine | null>(null)
   const filter = useRef(new DisplayFilter())
@@ -46,6 +52,7 @@ export function useTuner(profile: Profile): TunerState {
           const e = engine.current
           setInputLabel(e?.inputLabel ?? '')
           setSampleRate(e?.sampleRate ?? null)
+          setWakeLockMissing(e?.wakeLockMissing ?? false)
           void e?.inputs().then(setInputs, () => {})
         } else {
           filter.current.reset()
@@ -53,7 +60,8 @@ export function useTuner(profile: Profile): TunerState {
         }
       },
     )
-    void engine.current.start(deviceId)
+    setStarting(true)
+    void Promise.resolve(engine.current.start(deviceId)).finally(() => setStarting(false))
   }, [])
 
   useEffect(
@@ -64,5 +72,5 @@ export function useTuner(profile: Profile): TunerState {
     [],
   )
 
-  return { shown, status, detail, start, inputs, inputLabel, sampleRate }
+  return { shown, status, detail, start, inputs, inputLabel, sampleRate, starting, wakeLockMissing }
 }

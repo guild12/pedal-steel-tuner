@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 type Res = { text(): Promise<string>; url: string; status: number; type: string; body: string; clone(): Res }
 const BASE = 'https://x/app/'
@@ -9,7 +9,7 @@ const res = (body: string, status = 200, type = 'basic'): Res => ({
 
 function setup() {
   const cache = new Map<string, Res>()
-  const state = { online: true, network: new Map<string, Res>() }
+  const state = { online: true, delay: 0, network: new Map<string, Res>() }
   const key = (r: string | { url: string }, ignoreSearch = false) => {
     const u = new URL(typeof r === 'string' ? r : r.url, BASE + 'sw.js')
     if (ignoreSearch) u.search = ''
@@ -39,6 +39,7 @@ function setup() {
   }
   const fetchFn = async (r: string | { url: string }) => {
     if (!state.online) throw new TypeError('offline')
+    if (state.delay) await new Promise((r) => setTimeout(r, state.delay))
     const v = state.network.get(key(r))
     if (!v) return res('nf', 404)
     return v
@@ -46,7 +47,7 @@ function setup() {
   const ResponseG = { error: () => ({ err: true }) }
   new Function('self', 'caches', 'fetch', 'Response', readFileSync('public/sw.js', 'utf8'))(g, caches, fetchFn, ResponseG)
   const pending: Promise<unknown>[] = []
-  const send = async (url: string, mode = 'cors') => {
+  const send = async (url: string, mode = 'cors', settle = true) => {
     let out: unknown
     handlers.fetch({
       request: { method: 'GET', url, mode },
@@ -54,7 +55,7 @@ function setup() {
       waitUntil: (p: Promise<unknown>) => { pending.push(p) },
     })
     const r = await out
-    await Promise.all(pending)
+    if (settle) await Promise.all(pending)
     return r as Res & { err?: boolean }
   }
   const install = async () => {
@@ -62,11 +63,12 @@ function setup() {
     handlers.install({ waitUntil: (p: Promise<unknown>) => waits.push(p) })
     await Promise.all(waits)
   }
-  return { cache, state, send, key, install }
+  return { cache, state, send, key, install, pending }
 }
 
 describe('service worker', () => {
   const page = BASE
+  afterEach(() => vi.useRealTimers())
   it('serves the network page online and refreshes the cache; new deploys show on next load', async () => {
     const t = setup()
     t.state.network.set(t.key(page), res('v1'))
@@ -122,5 +124,29 @@ describe('service worker', () => {
     expect(t.cache.get(t.key(BASE + 'icon-192.png'))?.body).toBe('I2')
     t.state.online = false
     expect((await t.send(BASE + 'assets/a.js')).body).toBe('A1')
+  })
+  it('serves the cached page after 2.5 s when the network is slow, and still refreshes the cache', async () => {
+    vi.useFakeTimers()
+    const t = setup()
+    t.cache.set(t.key('./index.html'), res('cached'))
+    t.state.network.set(t.key(page), res('fresh'))
+    t.state.delay = 5000
+    const p = t.send(page, 'navigate', false)
+    await vi.advanceTimersByTimeAsync(2400)
+    let early = false
+    void p.then(() => { early = true })
+    await Promise.resolve()
+    expect(early).toBe(false)
+    await vi.advanceTimersByTimeAsync(100)
+    expect((await p).body).toBe('cached')
+    await vi.advanceTimersByTimeAsync(3000)
+    await Promise.all(t.pending)
+    expect(t.cache.get(t.key('./index.html'))?.body).toBe('fresh')
+  })
+  it('serves the cached page when navigation returns a 404', async () => {
+    const t = setup()
+    t.cache.set(t.key('./index.html'), res('cached'))
+    t.state.network.set(t.key(page), res('gone', 404))
+    expect((await t.send(page, 'navigate')).body).toBe('cached')
   })
 })

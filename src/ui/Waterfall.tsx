@@ -24,12 +24,14 @@ export function Waterfall({ deviation }: { deviation: number | null }) {
     let raf = requestAnimationFrame(function draw(t: number) {
       if (last !== null) carry += ((t - last) * SIZE) / SPAN_MS
       last = t
-      const rows = Math.floor(carry)
+      // After backgrounding the gap can exceed the whole canvas; never ask for an empty source.
+      const rows = Math.min(Math.floor(carry), SIZE)
       if (rows > 0) {
-        carry -= rows
-        ctx.drawImage(ctx.canvas, 0, 0, SIZE, SIZE - rows, 0, rows, SIZE, SIZE - rows)
+        carry = rows === SIZE ? 0 : carry - rows
+        if (rows < SIZE) ctx.drawImage(ctx.canvas, 0, 0, SIZE, SIZE - rows, 0, rows, SIZE, SIZE - rows)
         ctx.fillStyle = BG
         ctx.fillRect(0, 0, SIZE, rows)
+        const h = rows === SIZE ? 1 : rows // a full clear keeps just the newest row
         const dev = latest.current
         if (dev !== null) {
           const x = SIZE / 2 + Math.max(-RANGE, Math.min(RANGE, dev)) * (SIZE / 2 / RANGE) * 2.2
@@ -39,10 +41,10 @@ export function Waterfall({ deviation }: { deviation: number | null }) {
           g.addColorStop(0.5, 'rgba(255,225,130,1)')
           g.addColorStop(1, 'rgba(255,190,70,0)')
           ctx.fillStyle = g
-          ctx.fillRect(x - spread, 0, spread * 2, rows)
+          ctx.fillRect(x - spread, 0, spread * 2, h)
         }
         ctx.fillStyle = 'rgba(255,255,255,.28)'
-        ctx.fillRect(SIZE / 2 - 0.5, 0, 1, rows)
+        ctx.fillRect(SIZE / 2 - 0.5, 0, 1, h)
       }
       raf = requestAnimationFrame(draw)
     })

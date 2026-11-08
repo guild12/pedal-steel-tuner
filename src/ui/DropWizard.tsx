@@ -16,6 +16,7 @@ interface Props {
 type Step = 'up' | 'down' | 'result'
 const MIN_MS = 700
 const RE_ARM_JUMP = 1.0
+const MIN_DROP = 0.5
 
 export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
   const [step, setStep] = useState<Step>('up')
@@ -23,6 +24,7 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
   const [up, setUp] = useState<number | null>(null)
   const [down, setDown] = useState<number | null>(null)
   const [unsteady, setUnsteady] = useState(false)
+  const [noDrop, setNoDrop] = useState(false)
   const [typed, setTyped] = useState('')
   const samples = useRef<CentsSample[]>([])
   // After a step completes the old note is still ringing; wait for a gap or a clear change.
@@ -40,7 +42,13 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
       return
     }
     if (!armed.current) {
-      if (prevValue.current !== null && Math.abs(shown.cents - prevValue.current) <= RE_ARM_JUMP) return
+      const prev = prevValue.current
+      if (prev !== null) {
+        const move = shown.cents - prev
+        // Pressing A+B only lowers the E, so for step 2 an upward move is just drift.
+        const moved = step === 'down' ? move < -RE_ARM_JUMP : Math.abs(move) > RE_ARM_JUMP
+        if (!moved) return
+      }
       armed.current = true
     }
     samples.current.push({ cents: shown.cents, timeMs: t })
@@ -52,9 +60,14 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
       setUnsteady(false)
       if (step === 'up') {
         setUp(v)
+        setNoDrop(false)
         setStep('down')
+      } else if (up !== null && up - v < MIN_DROP) {
+        // A+B wasn't pressed (or not fully): stay on step 2 and ask for another pluck.
+        setNoDrop(true)
       } else {
         setDown(v)
+        setNoDrop(false)
         setStep('result')
       }
     } else {
@@ -64,6 +77,7 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
       const cut = s[s.length - 1].timeMs - MIN_MS * 2
       samples.current = s.filter((x) => x.timeMs >= cut)
     }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown, nowMs, step])
 
   const typedNum = typed === '' ? null : Number(typed)
@@ -77,6 +91,7 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
     setDown(null)
     samples.current = []
     armed.current = false
+    setNoDrop(false)
     setStep('up')
   }
 
@@ -94,6 +109,9 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
         <>
           <p>{prompt}</p>
           {pairs.length > 0 && <p className="text-sm text-[#94a0ad]">Average so far: {averageDrop(pairs)}¢</p>}
+          {noDrop && step === 'down' && (
+            <p role="status" className="text-amber-300">Didn't see a drop — hold A and B fully and pluck again.</p>
+          )}
           {unsteady && <p role="status" className="text-amber-300">Pluck again — the reading wasn't steady</p>}
         </>
       ) : (
@@ -117,7 +135,7 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
           step={0.1}
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
-          className="rounded-lg bg-[#0e1114] p-2 text-white"
+          className="rounded-lg bg-[#0e1114] p-2 text-base text-white"
         />
       </label>
       <div className="flex gap-2">

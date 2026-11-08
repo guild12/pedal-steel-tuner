@@ -9,8 +9,15 @@ const store = (event, key, res) => {
     .open(CACHE)
     .then((cache) => cache.put(key, res))
     .catch(() => {})
-  event.waitUntil(write)
+  try {
+    event.waitUntil(write)
+  } catch {
+    // The event is no longer extendable; the write still runs, it just isn't kept alive.
+  }
 }
+
+// On weak wifi a page fetch can hang for a long time; past this we show the cached page.
+const NAV_TIMEOUT_MS = 2500
 
 // Install caches the page and the hashed assets it references. The worker
 // registers after the first load has already fetched them, so without this an
@@ -64,19 +71,34 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url)
   if (url.origin !== self.location.origin) return
 
-  // Pages: network-first so a new deploy shows up on the next load.
+  // Pages: network-first so a new deploy shows up on the next load, but the cached
+  // page wins if the network is slow (2.5 s), fails, or answers with an error.
   if (req.mode === 'navigate') {
+    const net = fetch(req, { cache: 'no-cache' }).then((res) => {
+      if (cacheable(res)) store(event, './index.html', res.clone())
+      return res
+    })
+    // Lets a slow response still refresh the cache after we've answered from it.
+    event.waitUntil(net.catch(() => {}))
     event.respondWith(
-      fetch(req, { cache: 'no-cache' })
-        .then((res) => {
-          if (cacheable(res)) store(event, './index.html', res.clone())
-          return res
+      (async () => {
+        let timer
+        const timeout = new Promise((resolve) => {
+          timer = setTimeout(() => resolve(null), NAV_TIMEOUT_MS)
         })
-        .catch(() =>
-          caches
-            .match('./index.html', { ignoreSearch: true })
-            .then((hit) => hit || Response.error()),
-        ),
+        let res = null
+        try {
+          res = await Promise.race([net, timeout])
+        } catch {
+          // offline: fall through to the cache
+        }
+        clearTimeout(timer)
+        if (res && res.ok) return res
+        const hit = await caches.match('./index.html', { ignoreSearch: true })
+        if (hit) return hit
+        // Nothing cached (first visit): wait for the network, whatever it says.
+        return res || net.catch(() => Response.error())
+      })(),
     )
     return
   }

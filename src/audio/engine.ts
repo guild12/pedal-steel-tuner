@@ -29,6 +29,8 @@ export class TunerEngine {
   private listening = false
   private _inputLabel = ''
   private status: EngineStatus = 'idle'
+  private starting: Promise<void> | null = null
+  private _wakeLockMissing = false
 
   constructor(
     private readonly onFrame: (f: Frame) => void,
@@ -48,7 +50,22 @@ export class TunerEngine {
     return this._inputLabel
   }
 
-  async start(deviceId?: string): Promise<void> {
+  /** True when the screen can't be kept awake (no Wake Lock API, or the request failed). */
+  get wakeLockMissing(): boolean {
+    return this._wakeLockMissing
+  }
+
+  /** A second call while one is in flight (double tap) shares it instead of opening the mic twice. */
+  start(deviceId?: string): Promise<void> {
+    if (this.starting) return this.starting
+    const p = this.doStart(deviceId).finally(() => {
+      this.starting = null
+    })
+    this.starting = p
+    return p
+  }
+
+  private async doStart(deviceId?: string): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) {
       this.onStatus('insecure')
       return
@@ -153,6 +170,7 @@ export class TunerEngine {
     const nav = navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<Sentinel> } }
     try {
       const sentinel = (await nav.wakeLock?.request('screen')) ?? null
+      this._wakeLockMissing = sentinel === null
       // iOS releases the lock whenever the page is hidden; clear it so it's requested again.
       sentinel?.addEventListener('release', () => {
         this.wakeLock = null
@@ -160,12 +178,14 @@ export class TunerEngine {
       this.wakeLock = sentinel
     } catch {
       this.wakeLock = null
+      this._wakeLockMissing = true
     }
   }
 
   private readonly loop = (time: number): void => {
     if (!this.running) return
-    if (this.analyser && this.ctx) {
+    // A suspended context's buffer is frozen; emitting it would show an old note as live.
+    if (this.analyser && this.ctx && this.ctx.state === 'running') {
       this.analyser.getFloatTimeDomainData(this.buffer)
       // The newest samples are at the end of the analyser's buffer.
       const recent = this.buffer.subarray(this.buffer.length - this.needed)
