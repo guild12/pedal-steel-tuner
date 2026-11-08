@@ -28,11 +28,17 @@ export class TunerEngine {
   private rafId: number | null = null
   private listening = false
   private _inputLabel = ''
+  private status: EngineStatus = 'idle'
 
   constructor(
     private readonly onFrame: (f: Frame) => void,
-    private readonly onStatus: (s: EngineStatus, detail?: string) => void,
+    private readonly onStatusChange: (s: EngineStatus, detail?: string) => void,
   ) {}
+
+  private onStatus(s: EngineStatus, detail?: string): void {
+    this.status = s
+    this.onStatusChange(s, detail)
+  }
 
   get sampleRate(): number | null {
     return this.ctx?.sampleRate ?? null
@@ -126,7 +132,7 @@ export class TunerEngine {
 
   private readonly onDeviceChange = (): void => {
     // Input list changed: re-announce "running" so the UI re-reads inputs().
-    if (this.stream) this.onStatus('running')
+    if (this.stream && this.status === 'running') this.onStatus('running')
   }
 
   private readonly onVisibility = (): void => {
