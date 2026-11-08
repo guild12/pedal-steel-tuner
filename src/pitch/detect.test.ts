@@ -62,6 +62,31 @@ test('a quiet note (RMS 0.004) is still detected', () => {
   expect(Math.abs(centsBetween(result!.frequency, 82.407))).toBeLessThan(0.2)
 })
 
+function scaledTo(samples: Float32Array, rms: number): Float32Array {
+  const now = Math.sqrt(samples.reduce((s, v) => s + v * v, 0) / samples.length)
+  return samples.map((v) => (v / now) * rms)
+}
+
+test('a fading note at -74 dB (RMS 0.0002) is still detected', () => {
+  const sr = 48000
+  const g = tone({ hz: 415.3, sampleRate: sr, length: requiredSamples(sr), harmonics: [1, 0.5, 0.3] })
+  const result = detectPitch(scaledTo(g, 0.0002), sr)
+  expect(result).not.toBeNull()
+  expect(Math.abs(centsBetween(result!.frequency, 415.3))).toBeLessThan(0.2)
+})
+
+test('white noise above the silence cutoff is still rejected by YIN', () => {
+  const sr = 48000
+  const n = requiredSamples(sr)
+  const noise = new Float32Array(n)
+  let s = 987654
+  for (let i = 0; i < n; i++) {
+    s = (s * 1103515245 + 12345) % 2147483648
+    noise[i] = s / 2147483648 - 0.5
+  }
+  for (const rms of [0.0003, 0.003, 0.03]) expect(detectPitch(scaledTo(noise, rms), sr)).toBeNull()
+})
+
 test('silence returns null', () => expect(detectPitch(new Float32Array(requiredSamples(48000)), 48000)).toBeNull())
 
 test('faint noise alone returns null', () => {

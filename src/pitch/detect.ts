@@ -11,8 +11,9 @@ export const MIN_HZ = 38
 /** Just above the highest pulled note on the Sierra (A#4 ≈ 466 Hz). */
 export const MAX_HZ = 520
 
-// YIN's own threshold rejects noise, so this gate only skips true silence.
-const SILENCE_RMS = 0.001
+// YIN's own threshold rejects noise, so this gate only skips true silence (−80 dBFS).
+// At −60 dBFS a still-ringing string through the iRig blanked out (Gabe, 2026-11-08).
+const SILENCE_RMS = 0.0001
 const THRESHOLD = 0.15
 /** Low-pass cutoff applied before YIN; strips hiss far above the steel's range. */
 export const LOWPASS_HZ = 1000
