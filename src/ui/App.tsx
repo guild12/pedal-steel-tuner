@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { EngineStatus } from '../audio/engine'
 import { sierra14 } from '../model/seeds/sierra14'
+import { DropWizard } from './DropWizard'
 import { TunerScreen, type Lock } from './TunerScreen'
 import { useTuner } from './useTuner'
 
@@ -11,7 +12,8 @@ const MESSAGES: Partial<Record<EngineStatus, string>> = {
 }
 
 export function App() {
-  const profile = sierra14
+  const [profile, setProfile] = useState(sierra14)
+  const [measuring, setMeasuring] = useState(false)
   const { shown, status, detail, start } = useTuner(profile)
   const [lock, setLock] = useState<Lock | null>(null)
 
@@ -30,6 +32,19 @@ export function App() {
           {message}
         </p>
       )}
+      {measuring && (
+        <div className="mb-3">
+          <DropWizard
+            profile={profile}
+            shown={shown}
+            onSave={(cabinetDrop) => {
+              setProfile((p) => ({ ...p, cabinetDrop }))
+              setMeasuring(false)
+            }}
+            onCancel={() => setMeasuring(false)}
+          />
+        </div>
+      )}
       <TunerScreen
         profile={profile}
         shown={shown}
@@ -37,6 +52,7 @@ export function App() {
         lock={lock}
         onLock={setLock}
         onOpenSettings={() => {}}
+        onMeasureDrop={() => setMeasuring(true)}
       />
     </main>
   )

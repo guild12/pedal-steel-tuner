@@ -19,9 +19,10 @@ interface Props {
   lock: Lock | null
   onLock: (lock: Lock | null) => void
   onOpenSettings: () => void
+  onMeasureDrop?: () => void
 }
 
-export function TunerScreen({ profile, shown, status, lock, onLock, onOpenSettings }: Props) {
+export function TunerScreen({ profile, shown, status, lock, onLock, onOpenSettings, onMeasureDrop }: Props) {
   const header = (
     <div className="mb-2 flex items-center justify-between text-xs text-[#94a0ad]">
       <span>
@@ -93,6 +94,11 @@ export function TunerScreen({ profile, shown, status, lock, onLock, onOpenSettin
       {profile.cabinetDrop === 0 && (
         <p className="rounded-lg bg-[#1d232a] px-3 py-2 text-center text-xs text-[#94a0ad]">
           Cabinet drop not set — both gauges show the same target. Measure it in Settings.
+          {onMeasureDrop && (
+            <button onClick={onMeasureDrop} className="mt-2 block w-full rounded-lg bg-[#2a323b] p-2 font-bold text-white">
+              Measure cabinet drop
+            </button>
+          )}
         </p>
       )}
       {chips.length > 0 && shown && (
