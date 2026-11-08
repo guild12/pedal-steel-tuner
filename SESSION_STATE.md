@@ -2,6 +2,10 @@
 
 ## Current task
 
+**Phase 0 passed (2026-11-08 07:10 PST): web confirmed.** Results and Phase 1 carry-overs are in `docs/phase-0-results.md`. Next: write the Phase 1 plan (the real tuner: Sierra profile, two gauges with waterfall, cabinet drop, editing, offline) from `PRD.md`. Gabe still needs to find his Peterson to check the low strings for overtone pull.
+
+### Previous
+
 Phase 0 accuracy test: **live at https://guild12.github.io/pedal-steel-tuner/** (repo `guild12/pedal-steel-tuner`, public; pushing `main` deploys via GitHub Pages; pushed with Gabe's OK 2026-11-08). **Next: Gabe runs `docs/phase-0-results.md` at the steel (plan Task 5)**, then a pass means writing the Phase 1 plan and a fail means reopening web vs. native. Blocked on Gabe finding his Peterson StroboPlus (the reference tuner; use plain equal temperament for the test) and his iRig HD X. QR code for the page: `docs/phase-0-qr.png`. Also offered: measure the Sierra's cabinet drop with the test page (tune E string 5 to 0.0¢, press A+B, read the drop), then turn it into Peterson sweetener values as a stopgap. Plan: `docs/superpowers/plans/2026-11-08-phase-0-accuracy-test.md`. Ledger with all rulings: `.superpowers/sdd/2026-11-08-phase-0-accuracy-test/progress.md` (git-ignored).
 
 ## Log

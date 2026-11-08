@@ -129,7 +129,7 @@ Development discipline: Phase 0 comes first, because the riskiest unknown is whe
 ## 8. Open Questions (deferred deliberately)
 
 1. **B6 side and the lock.** The French formula only covers E9 with A+B. What should the targets be with the lock engaged, and for C and B♭? v1 defaults these to editable values and lets Gabe's ears decide. Revisit after real use. *Owner: Gabe at the steel.*
-2. **Web or native, for good.** Web is the plan. Native becomes the plan if Phase 0 shows Safari's mic or USB input isn't accurate or stable enough. *Owner: Phase 0 result.*
+2. ~~**Web or native, for good.**~~ **Closed 2026-11-08: web confirmed** by the Phase 0 test at the steel (`docs/phase-0-results.md`). The iRig HD X reads accurately and steadily in Safari, and the phone mic works with the amp on.
 3. **Sierra P5 and any other personal changes.** The seed copedent is Sierra's factory SCM-14SE chart, read from a low-res photo (`reference/sierra-scm-14se-chart.jpg`). Gabe says his P5 is a little different, and which lever engages the lock is a guess from the chart. Because Phase 1 includes editing, this doesn't block the build. *Owner: Gabe, when he can check the guitar.*
 4. **14.49 vs. a pure third (13.69).** The French site uses 14.49. Keep it for fidelity to the process that worked; making T editable is cheap. *Owner: later.*
 5. **Visualizer interop.** Sharing one copedent format with the pedal-steel-visualizer is a builder's-call default. Merging the two apps is not in scope.

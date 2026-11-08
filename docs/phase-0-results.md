@@ -78,6 +78,30 @@ For string 14 (the low E), also note roughly how long it takes for a reading to 
 | 13 | B1 | | | | | |
 | 14 | E1 | | | | | low E: seconds to first reading: ___ |
 
+## What happened (2026-11-08, run live in chat)
+
+The tables above weren't filled in string by string. Gabe ran the key checks with Claude and reported by chat. The Peterson wasn't available, so ears were the reference.
+
+**iRig HD X (guitar plugged in), other strings muted:**
+- **String 14 (low E):** reads E1 (right octave, no octave jump). The reading starts about +6¢ sharp on the pluck and settles within a second or two, which is normal pitch glide on a big string. It holds while the string rings.
+- **String 1 (high G#):** Steadiness averages about ±0.2¢, with occasional spikes to ±1¢. Note jumps stay at 0.
+- **E1/E2 octave by ear,** with both reading 0.0¢: "sounds pretty good" (hard to judge that low).
+- Gabe's first impression: "seems to be pretty accurate."
+
+**Phone mic:**
+- **Unamplified steel:** doesn't hold steady. Expected: a solid-body steel makes very little acoustic sound.
+- **Through the amp, phone about 30 cm from the speaker:** holds the note, and the dot is "a bit jumpy."
+
+**Bugs found and fixed during the test (both live):**
+1. Steadiness counted readings instead of time, so it vanished at 30 fps. Now it shows once a note has held 0.5 s.
+2. The silence cutoff of −60 dBFS blanked a still-ringing string through the iRig. Gabe spotted it via the Level readout. Now −80 dBFS, and YIN still rejects noise.
+
+**Carry into Phase 1:**
+- **Very weak tails:** after about 4–5 s the reading jumps around. Hold the last solid reading or fade the display when the level or clarity drops.
+- **Smoothing:** smooth the displayed value (calms the pluck attack and the mic jitter).
+- **Overtone pull:** check the low strings against the Peterson once it turns up. Fundamental-weighted refinement is still planned (reviewer's inharmonicity finding).
+- **iRig gain:** set it so full strums don't peak, and let the app handle the quiet tail.
+
 ## Decision
 
-(Filled in after the test.)
+**Web confirmed.** Safari on Gabe's iPhone reads the steel accurately and steadily through the iRig HD X, the primary gig path, and holds through the phone mic with the amp on. PRD Open Question 2 is closed in favor of the web app. Next: write the Phase 1 plan.
