@@ -1,5 +1,4 @@
 const CACHE = 'pst-v1'
-const PRECACHE = ['./', './index.html']
 const ASSETS_PATH = new URL('./assets/', self.location.href).pathname
 
 const cacheable = (res) => res && res.status === 200 && res.type === 'basic'
@@ -13,9 +12,38 @@ const store = (event, key, res) => {
   event.waitUntil(write)
 }
 
+// Install caches the page and the hashed assets it references. The worker
+// registers after the first load has already fetched them, so without this an
+// offline relaunch after one visit would find the page but not its JS/CSS.
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()),
+    (async () => {
+      const cache = await caches.open(CACHE)
+      const res = await fetch('./index.html', { cache: 'no-cache' })
+      if (!cacheable(res)) throw new Error('index.html not cacheable')
+      const html = await res.clone().text()
+      await cache.put('./index.html', res.clone())
+      await cache.put('./', res.clone())
+      const assets = new Set()
+      for (const m of html.matchAll(/(?:src|href)\s*=\s*["']([^"']+)["']/g)) {
+        try {
+          const u = new URL(m[1], self.location.href)
+          if (u.origin === self.location.origin && u.pathname.startsWith(ASSETS_PATH)) {
+            assets.add(u.href)
+          }
+        } catch {
+          // ignore unparseable values
+        }
+      }
+      await Promise.all(
+        [...assets].map((href) =>
+          fetch(href)
+            .then((r) => (cacheable(r) ? cache.put(href, r) : undefined))
+            .catch(() => {}),
+        ),
+      )
+      await self.skipWaiting()
+    })(),
   )
 })
 

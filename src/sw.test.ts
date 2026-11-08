@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-type Res = { url: string; status: number; type: string; body: string; clone(): Res }
+type Res = { text(): Promise<string>; url: string; status: number; type: string; body: string; clone(): Res }
 const BASE = 'https://x/app/'
 const res = (body: string, status = 200, type = 'basic'): Res => ({
-  url: '', status, type, body, clone() { return this },
+  url: '', status, type, body, clone() { return this }, text: async () => body,
 })
 
 function setup() {
@@ -37,7 +37,7 @@ function setup() {
     skipWaiting() {}, clients: { claim() {} },
     addEventListener: (t: string, f: (e: unknown) => void) => { handlers[t] = f },
   }
-  const fetchFn = async (r: { url: string }) => {
+  const fetchFn = async (r: string | { url: string }) => {
     if (!state.online) throw new TypeError('offline')
     const v = state.network.get(key(r))
     if (!v) return res('nf', 404)
@@ -57,7 +57,12 @@ function setup() {
     await Promise.all(pending)
     return r as Res & { err?: boolean }
   }
-  return { cache, state, send, key }
+  const install = async () => {
+    const waits: Promise<unknown>[] = []
+    handlers.install({ waitUntil: (p: Promise<unknown>) => waits.push(p) })
+    await Promise.all(waits)
+  }
+  return { cache, state, send, key, install }
 }
 
 describe('service worker', () => {
@@ -71,6 +76,25 @@ describe('service worker', () => {
     expect((await t.send(page, 'navigate')).body).toBe('v2')
     t.state.online = false
     expect((await t.send(page, 'navigate')).body).toBe('v2')
+  })
+  it('install precaches the page and its hashed assets so the first offline launch works', async () => {
+    const t = setup()
+    const html = '<script type="module" crossorigin src="/app/assets/index-abc.js"></script><link rel="stylesheet" href="/app/assets/index-def.css"><link href="manifest.webmanifest">'
+    t.state.network.set(t.key(page), res(html))
+    t.state.network.set(t.key('./index.html'), res(html))
+    t.state.network.set(t.key(BASE + 'assets/index-abc.js'), res('JS'))
+    t.state.network.set(t.key(BASE + 'assets/index-def.css'), res('CSS'))
+    await t.install()
+    t.state.online = false
+    expect((await t.send(BASE + 'assets/index-abc.js')).body).toBe('JS')
+    expect((await t.send(BASE + 'assets/index-def.css')).body).toBe('CSS')
+    expect((await t.send(page, 'navigate')).body).toBe(html)
+  })
+  it('install still finishes when the page references no assets', async () => {
+    const t = setup()
+    t.state.network.set(t.key('./index.html'), res('<p>hi</p>'))
+    await t.install()
+    expect(t.cache.has(t.key('./index.html'))).toBe(true)
   })
   it('serves cached index.html offline, including for query-string navigations', async () => {
     const t = setup()
