@@ -2,7 +2,7 @@
 
 ## Current task
 
-Phase 0 accuracy test: built, reviewed and fixed on branch `phase-0-accuracy-test` (not pushed; no remote yet). **Waiting on Gabe's OK** to create public repo `guild12/pedal-steel-tuner`, merge to `main` and push, which deploys the page to GitHub Pages (plan Task 4). Then Gabe runs `docs/phase-0-results.md` at the steel (Task 5). Plan: `docs/superpowers/plans/2026-11-08-phase-0-accuracy-test.md`. Ledger with all rulings: `.superpowers/sdd/2026-11-08-phase-0-accuracy-test/progress.md` (git-ignored).
+Phase 0 accuracy test: **live at https://guild12.github.io/pedal-steel-tuner/** (repo `guild12/pedal-steel-tuner`, public; pushing `main` deploys via GitHub Pages; pushed with Gabe's OK 2026-11-08). **Next: Gabe runs `docs/phase-0-results.md` at the steel (plan Task 5)**, then a pass means writing the Phase 1 plan and a fail means reopening web vs. native. Plan: `docs/superpowers/plans/2026-11-08-phase-0-accuracy-test.md`. Ledger with all rulings: `.superpowers/sdd/2026-11-08-phase-0-accuracy-test/progress.md` (git-ignored).
 
 ## Log
 
