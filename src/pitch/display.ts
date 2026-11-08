@@ -18,7 +18,7 @@ export interface DisplayFilterOptions {
   tailDb?: number
 }
 
-const ONSET_DB = 6
+const ONSET_DB = 12
 const ONSET_WINDOW_MS = 100
 
 export class DisplayFilter {
@@ -57,13 +57,13 @@ export class DisplayFilter {
 
   /** A new pluck: RMS at least ONSET_DB above the lowest RMS in the last ONSET_WINDOW_MS. */
   private isOnset(f: Frame): boolean {
-    this.recent = this.recent.filter((r) => f.timeMs - r.t <= ONSET_WINDOW_MS)
     if (this.recent.length === 0) return false
     const min = Math.min(...this.recent.map((r) => r.rms))
     return f.rms >= min * 10 ** (ONSET_DB / 20)
   }
 
   push(f: Frame, aRef: number): Shown | null {
+    this.recent = this.recent.filter((r) => f.timeMs - r.t <= ONSET_WINDOW_MS)
     const onset = f.frequency !== null && this.isOnset(f)
     this.recent.push({ t: f.timeMs, rms: f.rms })
 

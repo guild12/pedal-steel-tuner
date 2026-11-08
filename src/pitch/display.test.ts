@@ -131,16 +131,38 @@ describe('DisplayFilter', () => {
     expect(shown!.cents).toBeCloseTo(1, 1)
   })
 
-  it('shows a soft new note right after a loud one (6 dB onset)', () => {
+  it('shows a soft new note more than 30 dB under the old peak (onset)', () => {
     const f = new DisplayFilter()
     let i = 0
     for (; i < 30; i++) f.push(frame(i, A2, 0, 0.1), 440)
-    for (const end = i + 10; i < end; i++) f.push(frame(i, A2, 0, 0.1 * 0.7 ** (i - 29)), 440)
-    for (const end = i + 12; i < end; i++) f.push(frame(i, A2, 0, 0.001), 440)
-    const shown = f.push(frame(i, E2, 3, 0.004), 440)
+    for (const end = i + 10; i < end; i++) f.push(frame(i, A2, 0, 0.1 * 0.4 ** (i - 29)), 440)
+    for (const end = i + 12; i < end; i++) f.push(frame(i, A2, 0, 0.0001), 440)
+    // 0.002 is -34 dB under the 0.1 peak: only the onset rule can let it through.
+    const shown = f.push(frame(i, E2, 3, 0.002), 440)
     expect(shown).not.toBeNull()
     expect(shown!.held).toBe(false)
     expect(shown!.note).toBe('E')
     expect(shown!.cents).toBeCloseTo(3, 1)
+  })
+
+  it('does not treat a beating weak tail (8 dB swings) as onsets', () => {
+    const f = new DisplayFilter()
+    let i = 0
+    for (; i < 30; i++) f.push(frame(i, E2, 2, 0.1), 440)
+    const wild = [37, 12, 25, 40, 6, -30, 44]
+    const start = i
+    for (; (i - start) * DT < 1000; i++) {
+      const high = Math.floor(((i - start) * DT) / 50) % 2 === 1
+      // 0.0008 and 0.002 are both more than 30 dB under the 0.1 peak; 0.002 is +8 dB.
+      const shown = f.push(frame(i, E2, wild[i % wild.length], high ? 0.002 : 0.0008), 440)
+      if (shown !== null) expect(shown.held).toBe(true)
+      if ((i - start) * DT > 420) expect(shown).toBeNull()
+    }
+  })
+
+  it('prunes the RMS history during long silence', () => {
+    const f = new DisplayFilter()
+    for (let i = 0; i < 600; i++) f.push(frame(i, null, 0, 0), 440)
+    expect((f as unknown as { recent: unknown[] }).recent.length).toBeLessThan(10)
   })
 })
