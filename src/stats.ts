@@ -39,31 +39,34 @@ export class RollingStats {
 export class SteadinessTracker {
   private stats = new RollingStats(1000)
   private lastMidi: number | null = null
-  private silentRun = 0
+  private runStart = 0
+  private lastNoteTime = 0
   private changes: number[] = []
   private now = 0
 
+  // Time-based, not frame-based: iPhones draw at 30, 60 or 120 frames a second.
   constructor(
-    private readonly minSamples = 30,
-    private readonly silenceFrames = 10,
+    private readonly minHeldMs = 500,
+    private readonly minSamples = 8,
+    private readonly silenceMs = 250,
     private readonly jumpWindowMs = 2000,
   ) {}
 
   pushNote(midi: number, cents: number, timeMs: number): void {
     this.now = timeMs
-    this.silentRun = 0
     if (this.lastMidi !== null && midi !== this.lastMidi) {
       this.changes.push(timeMs)
       this.stats.reset()
     }
+    if (this.lastMidi !== midi) this.runStart = timeMs
     this.lastMidi = midi
+    this.lastNoteTime = timeMs
     this.stats.push(cents, timeMs)
   }
 
   pushSilence(timeMs: number): void {
     this.now = timeMs
-    this.silentRun++
-    if (this.silentRun >= this.silenceFrames) {
+    if (this.lastMidi !== null && timeMs - this.lastNoteTime >= this.silenceMs) {
       this.stats.reset()
       this.lastMidi = null
     }
@@ -77,7 +80,8 @@ export class SteadinessTracker {
 
   get text(): string {
     const sd = this.stats.stdDev
-    if (sd === null || this.stats.count < this.minSamples) return '—'
+    const held = this.lastMidi !== null && this.lastNoteTime - this.runStart >= this.minHeldMs
+    if (sd === null || !held || this.stats.count < this.minSamples) return '—'
     return `±${sd.toFixed(1)}¢`
   }
 }
