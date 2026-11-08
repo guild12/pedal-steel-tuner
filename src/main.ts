@@ -1,7 +1,7 @@
 import { createGauge } from './gauge'
 import { detectPitch, requiredSamples } from './pitch/detect'
 import { noteFromFrequency } from './pitch/notes'
-import { RollingStats } from './stats'
+import { SteadinessTracker } from './stats'
 
 const style = document.createElement('style')
 style.textContent = `
@@ -33,7 +33,8 @@ app.innerHTML = `
   <div class="gauge" id="gauge"></div>
   <div class="cents" id="cents">&nbsp;</div>
   <div class="row" id="hz">&nbsp;</div>
-  <div class="row">Steadiness <span class="steady" id="steady">—</span></div>
+  <div class="row">Steadiness <span class="steady" id="steady">—</span> · Note jumps <span id="jumps">0</span></div>
+  <div class="row">Level <span id="level">—</span></div>
   <footer id="footer">A = 440 Hz</footer>
 `
 
@@ -41,15 +42,15 @@ const $ = (id: string) => document.getElementById(id)!
 const startBtn = $('start') as HTMLButtonElement
 const inputSel = $('input') as HTMLSelectElement
 const gauge = createGauge($('gauge'))
-const stats = new RollingStats(1000)
+const steadiness = new SteadinessTracker()
 
 let ctx: AudioContext | null = null
 let stream: MediaStream | null = null
 let source: MediaStreamAudioSourceNode | null = null
 let analyser: AnalyserNode | null = null
+let wakeLock: { release(): Promise<void> } | null = null
 let buffer = new Float32Array(0)
 let needed = 0
-let lastMidi: number | null = null
 let running = false
 
 function showMessage(text: string | null): void {
@@ -58,11 +59,23 @@ function showMessage(text: string | null): void {
   el.textContent = text ?? ''
 }
 
+function showResume(): void {
+  startBtn.textContent = 'Tap to resume'
+  startBtn.hidden = false
+  showMessage('Listening stopped (the phone locked or another app took the audio). Tap to resume.')
+}
+
 function nextPowerOfTwo(n: number): number {
   return Math.min(32768, 2 ** Math.ceil(Math.log2(n)))
 }
 
-async function listInputs(activeId: string | undefined): Promise<void> {
+function activeTrack(): MediaStreamTrack | undefined {
+  return stream?.getAudioTracks()[0]
+}
+
+async function refreshInputs(): Promise<void> {
+  const track = activeTrack()
+  const activeId = track?.getSettings().deviceId
   const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput')
   inputSel.innerHTML = ''
   devices.forEach((d, i) => {
@@ -73,6 +86,23 @@ async function listInputs(activeId: string | undefined): Promise<void> {
     inputSel.appendChild(opt)
   })
   inputSel.hidden = devices.length === 0
+  if (ctx) $('footer').textContent = `A = 440 Hz · Sample rate ${ctx.sampleRate} Hz · Input: ${track?.label || 'default'}`
+}
+
+async function keepScreenAwake(): Promise<void> {
+  // Wake Lock needs iOS 18.4+ in a Home Screen app; older versions just skip it.
+  type Sentinel = EventTarget & { release(): Promise<void> }
+  const nav = navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<Sentinel> } }
+  try {
+    const sentinel = (await nav.wakeLock?.request('screen')) ?? null
+    // iOS releases the lock whenever the page is hidden; clear it so it's requested again.
+    sentinel?.addEventListener('release', () => {
+      wakeLock = null
+    })
+    wakeLock = sentinel
+  } catch {
+    wakeLock = null
+  }
 }
 
 async function start(deviceId?: string): Promise<void> {
@@ -91,7 +121,12 @@ async function start(deviceId?: string): Promise<void> {
         ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
       },
     })
-    ctx ??= new AudioContext()
+    if (!ctx) {
+      ctx = new AudioContext()
+      ctx.addEventListener('statechange', () => {
+        if (ctx && ctx.state !== 'running' && running) showResume()
+      })
+    }
     await ctx.resume()
     source = ctx.createMediaStreamSource(stream)
     analyser = ctx.createAnalyser()
@@ -100,10 +135,11 @@ async function start(deviceId?: string): Promise<void> {
     buffer = new Float32Array(analyser.fftSize)
     source.connect(analyser)
 
-    const track = stream.getAudioTracks()[0]
-    const activeId = track.getSettings().deviceId
-    await listInputs(activeId)
-    $('footer').textContent = `A = 440 Hz · Sample rate ${ctx.sampleRate} Hz · Input: ${track.label || 'default'}`
+    const track = activeTrack()!
+    track.addEventListener('mute', showResume)
+    track.addEventListener('ended', showResume)
+    await refreshInputs()
+    await keepScreenAwake()
     showMessage(null)
     startBtn.hidden = true
     if (!running) {
@@ -121,33 +157,44 @@ async function start(deviceId?: string): Promise<void> {
 }
 
 function loop(time: number): void {
-  if (analyser) {
+  if (analyser && ctx) {
     analyser.getFloatTimeDomainData(buffer)
     // The newest samples are at the end of the analyser's buffer.
-    const result = detectPitch(buffer.subarray(buffer.length - needed), ctx!.sampleRate)
+    const recent = buffer.subarray(buffer.length - needed)
+    let sumSq = 0
+    for (let i = 0; i < recent.length; i++) sumSq += recent[i] * recent[i]
+    const rms = Math.sqrt(sumSq / recent.length)
+    $('level').textContent = rms > 0 ? `${(20 * Math.log10(rms)).toFixed(0)} dB` : '—'
+
+    const result = detectPitch(recent, ctx.sampleRate)
     if (result === null) {
+      steadiness.pushSilence(time)
       $('note').textContent = '—'
       $('cents').innerHTML = '&nbsp;'
       $('hz').innerHTML = '&nbsp;'
       gauge.update(null)
     } else {
       const reading = noteFromFrequency(result.frequency)
-      if (reading.midi !== lastMidi) {
-        stats.reset()
-        lastMidi = reading.midi
-      }
-      stats.push(reading.cents, time)
+      steadiness.pushNote(reading.midi, reading.cents, time)
       const sign = reading.cents >= 0 ? '+' : '−'
       $('note').innerHTML = `${reading.name}<small>${reading.octave}</small>`
       $('cents').textContent = `${sign}${Math.abs(reading.cents).toFixed(1)}¢`
       $('hz').textContent = `${result.frequency.toFixed(2)} Hz`
       gauge.update(reading.cents)
-      const sd = stats.stdDev
-      $('steady').textContent = sd === null ? '—' : `±${sd.toFixed(1)}¢`
     }
+    $('steady').textContent = steadiness.text
+    $('jumps').textContent = String(steadiness.jumps)
   }
   requestAnimationFrame(loop)
 }
 
-startBtn.addEventListener('click', () => void start())
+startBtn.addEventListener('click', () => void start(inputSel.hidden ? undefined : inputSel.value || undefined))
 inputSel.addEventListener('change', () => void start(inputSel.value))
+navigator.mediaDevices?.addEventListener('devicechange', () => {
+  if (stream) void refreshInputs()
+})
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !running) return
+  if (ctx && ctx.state !== 'running') showResume()
+  else if (!wakeLock) void keepScreenAwake()
+})
