@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { sierra14 } from '../model/seeds/sierra14'
 import { Settings } from './Settings'
 
@@ -51,5 +51,57 @@ describe('Settings', () => {
     setup()
     fireEvent.click(screen.getByRole('button', { name: 'Measure' }))
     expect(screen.getByRole('dialog', { name: 'Measure cabinet drop' })).toBeTruthy()
+  })
+})
+
+describe('Settings drafts and export', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('commits an open note only once it is complete', () => {
+    const onChange = setup()
+    const input = screen.getByLabelText('String 5 open note')
+    for (const v of ['G', 'G#', 'G#4']) fireEvent.change(input, { target: { value: v } })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange.mock.calls[0][0].strings[4].openNote).toBe('G#4')
+  })
+
+  it('only commits A reference within 430-450', () => {
+    const onChange = setup()
+    const input = screen.getByLabelText(/A reference/)
+    for (const v of ['4', '44', '440']) fireEvent.change(input, { target: { value: v } })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange.mock.calls[0][0].aRef).toBe(440)
+    fireEvent.change(input, { target: { value: '451' } })
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('rounds and clamps cabinet drop, and ignores a cleared field', () => {
+    const onChange = setup()
+    const input = screen.getByLabelText('Cabinet drop')
+    fireEvent.change(input, { target: { value: '' } })
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.change(input, { target: { value: '6.34' } })
+    expect(onChange.mock.calls[0][0].cabinetDrop).toBe(6.3)
+    fireEvent.change(input, { target: { value: '45' } })
+    expect(onChange.mock.calls[1][0].cabinetDrop).toBe(30)
+  })
+
+  it('appends the export anchor to the body and revokes the URL later', () => {
+    vi.useFakeTimers()
+    const revoke = vi.fn()
+    URL.createObjectURL = vi.fn(() => 'blob:x')
+    URL.revokeObjectURL = revoke
+    let inBody = false
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      inBody = document.body.contains(this)
+    })
+    setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    expect(inBody).toBe(true)
+    expect(document.body.querySelector('a[download]')).toBeNull()
+    expect(revoke).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1500)
+    expect(revoke).toHaveBeenCalledWith('blob:x')
+    click.mockRestore()
   })
 })

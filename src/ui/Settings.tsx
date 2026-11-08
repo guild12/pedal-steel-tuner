@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { exportProfile } from '../model/exportProfile'
 import { frenchNoteTable } from '../model/targets'
 import type { Profile, StringChange, StringConfig, TargetRule } from '../model/types'
@@ -19,6 +19,53 @@ const btn = 'rounded-lg bg-[#2a323b] px-3 py-2 font-bold'
 function num(v: string, fallback = 0): number {
   const n = Number(v)
   return v.trim() !== '' && Number.isFinite(n) ? n : fallback
+}
+
+/** Keeps what the user is typing; calls `commit` only with a value `parse` accepts. */
+function DraftInput<V>({
+  value, parse, commit, label, className, ...rest
+}: {
+  value: V
+  parse: (text: string) => V | null
+  commit: (v: V) => void
+  label: string
+  className?: string
+  type?: string
+  step?: number
+  min?: number
+  max?: number
+}) {
+  const [draft, setDraft] = useState(String(value))
+  useEffect(() => {
+    setDraft((d) => (parse(d) === value ? d : String(value)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+  const ok = parse(draft) !== null
+  return (
+    <input
+      aria-label={label}
+      aria-invalid={!ok}
+      {...rest}
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value)
+        const v = parse(e.target.value)
+        if (v !== null) commit(v)
+      }}
+      className={`${className ?? ''} ${ok ? '' : 'outline outline-2 outline-red-500'}`}
+    />
+  )
+}
+
+const NOTE_RE = /^([A-G]#?)(-?\d+)$/
+const parseNote = (t: string) => (NOTE_RE.test(t) ? t : null)
+const parseRef = (t: string) => {
+  const n = Number(t)
+  return t.trim() !== '' && n >= 430 && n <= 450 ? n : null
+}
+const parseDrop = (t: string) => {
+  const n = Number(t)
+  return t.trim() !== '' && Number.isFinite(n) ? Math.min(30, Math.max(0, Math.round(n * 10) / 10)) : null
 }
 
 function RuleEditor({ label, rule, onChange }: { label: string; rule: TargetRule; onChange: (r: TargetRule) => void }) {
@@ -65,8 +112,11 @@ export function Settings({ profile, shown, onChange, onClose }: Props) {
     const a = document.createElement('a')
     a.href = url
     a.download = `${profile.name || 'profile'}.json`
+    document.body.appendChild(a)
     a.click()
-    URL.revokeObjectURL(url)
+    a.remove()
+    // Safari needs the URL alive for a moment after the click.
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   return (
@@ -82,16 +132,18 @@ export function Settings({ profile, shown, onChange, onClose }: Props) {
       </label>
 
       <div className="flex items-end gap-2">
-        <label className="flex flex-1 flex-col gap-1 text-sm text-[#94a0ad]">
+        <div className="flex flex-1 flex-col gap-1 text-sm text-[#94a0ad]">
           Cabinet drop
-          <input
+          <DraftInput
+            label="Cabinet drop"
             type="number"
             step={0.1}
             value={profile.cabinetDrop}
-            onChange={(e) => set({ cabinetDrop: num(e.target.value) })}
+            parse={parseDrop}
+            commit={(cabinetDrop) => set({ cabinetDrop })}
             className={field}
           />
-        </label>
+        </div>
         <button onClick={() => setMeasuring(true)} className={btn}>Measure</button>
       </div>
       {measuring && (
@@ -106,18 +158,18 @@ export function Settings({ profile, shown, onChange, onClose }: Props) {
         />
       )}
 
-      <label className="flex flex-col gap-1 text-sm text-[#94a0ad]">
+      <div className="flex flex-col gap-1 text-sm text-[#94a0ad]">
         A reference (430–450)
-        <input
+        <DraftInput
+          label="A reference (430–450)"
           type="number"
-          min={430}
-          max={450}
           step={0.1}
           value={profile.aRef}
-          onChange={(e) => set({ aRef: num(e.target.value, profile.aRef) })}
+          parse={parseRef}
+          commit={(aRef) => set({ aRef })}
           className={field}
         />
-      </label>
+      </div>
 
       <section className="flex flex-col gap-2">
         <h2 className="font-bold">Note table (¢)</h2>
@@ -147,10 +199,11 @@ export function Settings({ profile, shown, onChange, onClose }: Props) {
             <div key={s.number} className="flex flex-col gap-2 rounded-xl bg-[#1d232a] p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-bold">{sl}</span>
-                <input
-                  aria-label={`${sl} open note`}
+                <DraftInput
+                  label={`${sl} open note`}
                   value={s.openNote}
-                  onChange={(e) => setString(s.number, (x) => ({ ...x, openNote: e.target.value }))}
+                  parse={parseNote}
+                  commit={(openNote) => setString(s.number, (x) => ({ ...x, openNote }))}
                   className={`${field} w-20`}
                 />
                 <RuleEditor
