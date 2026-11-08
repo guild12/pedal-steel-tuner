@@ -35,6 +35,8 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
     const usable = shown && !shown.held && shown.note === 'E' && shown.octave === 4
     if (!usable) {
       armed.current = true
+      samples.current = []
+      setUnsteady(false)
       return
     }
     if (!armed.current) {
@@ -70,7 +72,7 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
   const measured = step === 'result' && current.length > 0 ? averageDrop(current) : null
 
   const again = () => {
-    if (up !== null && down !== null) setPairs((p) => [...p, { up, down }])
+    if (up !== null && down !== null && up - down >= 0 && up - down <= 30) setPairs((p) => [...p, { up, down }])
     setUp(null)
     setDown(null)
     samples.current = []
@@ -78,7 +80,8 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
     setStep('up')
   }
 
-  const saveValue = typedValid ? Math.round(typedNum * 10) / 10 : measured
+  const measuredBad = measured !== null && (measured < 0 || measured > 30)
+  const saveValue = typedValid ? Math.round(typedNum * 10) / 10 : measuredBad ? null : measured
   const prompt =
     step === 'up'
       ? 'Pluck your high E (string 5) with no pedals and let it ring.'
@@ -97,6 +100,11 @@ export function DropWizard({ shown, nowMs, onSave, onCancel }: Props) {
         <>
           <p className="text-2xl font-bold">Drop: {up !== null && down !== null ? Math.round((up - down) * 10) / 10 : 0}¢</p>
           {current.length > 1 && <p className="text-sm text-[#94a0ad]">Average of {current.length}: {measured}¢</p>}
+          {measuredBad && (
+            <p role="alert" className="text-amber-300">
+              That doesn't look right — check you pressed A and B on the second pluck, then measure again.
+            </p>
+          )}
           <button onClick={again} className="rounded-xl bg-[#2a323b] p-3 font-bold">Again</button>
         </>
       )}

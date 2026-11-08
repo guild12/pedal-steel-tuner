@@ -44,4 +44,32 @@ describe('DropWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith(5.5)
   })
+
+  it('does not complete a step from a stray reading, a gap, then one sample', () => {
+    const { push } = setup()
+    push(e(2.0), 0)
+    push(null as unknown as Shown, 100)
+    push(e(2.0), 5000)
+    expect(screen.getByText(/Pluck your high E/)).toBeTruthy()
+    expect(screen.queryByText(/Now hold A and B/)).toBeNull()
+  })
+
+  it('does not complete step 2 from the still-ringing step-1 note', () => {
+    const { push } = setup()
+    feed(push, 0, () => 2.0)
+    expect(screen.getByText(/Now hold A and B/)).toBeTruthy()
+    for (let t = 1000; t <= 2500; t += 100) push(e(2.0), t)
+    expect(screen.getByText(/Now hold A and B/)).toBeTruthy()
+  })
+
+  it('rejects a measured drop outside 0-30', () => {
+    const { push, onSave } = setup()
+    feed(push, 0, () => -4.3)
+    feed(push, 2000, () => 2.0)
+    expect(screen.getByText(/That doesn't look right/)).toBeTruthy()
+    const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement
+    expect(save.disabled).toBe(true)
+    fireEvent.click(save)
+    expect(onSave).not.toHaveBeenCalled()
+  })
 })

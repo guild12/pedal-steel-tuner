@@ -18,6 +18,12 @@ describe('steadyCents', () => {
   })
 })
 
+describe('steadyCents coverage', () => {
+  it('returns null for two samples 800 ms apart', () => {
+    expect(steadyCents([{ cents: 2, timeMs: 0 }, { cents: 2, timeMs: 800 }])).toBeNull()
+  })
+})
+
 describe('averageDrop', () => {
   it('averages pairs, rounded to 0.1', () => {
     expect(averageDrop([{ up: 2, down: -4.1 }, { up: 1.8, down: -4.5 }])).toBe(6.2)

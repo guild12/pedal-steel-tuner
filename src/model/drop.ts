@@ -11,7 +11,10 @@ export function steadyCents(samples: CentsSample[], minMs = 700, maxSpread = 1.0
   if (samples.length === 0) return null
   const last = samples[samples.length - 1].timeMs
   if (last - samples[0].timeMs < minMs) return null
-  const win = samples.filter((s) => s.timeMs >= last - minMs).map((s) => s.cents)
+  const inWin = samples.filter((s) => s.timeMs >= last - minMs)
+  // The window must be genuinely covered: enough samples, reaching back close to minMs.
+  if (inWin.length < 5 || inWin[0].timeMs - (last - minMs) > 50) return null
+  const win = inWin.map((s) => s.cents)
   if (Math.max(...win) - Math.min(...win) > maxSpread) return null
   const sorted = [...win].sort((a, b) => a - b)
   const mid = sorted.length >> 1
